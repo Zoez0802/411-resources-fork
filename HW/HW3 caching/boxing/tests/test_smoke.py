@@ -5,7 +5,7 @@ from boxing.models.boxers_model import Boxers
 @pytest.fixture
 def app():
     app = create_app()
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'  # Use a test database
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'  
     with app.app_context():
         db.create_all()
     yield app
