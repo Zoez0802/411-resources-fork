@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 class WeatherModel:
     """An in-memory model to store each user's favorite locations.
     
-    Users can add and save their favorite locations to their profile. This feature 
-    simplifies accessing weather data for commonly viewed cities or areas without 
-    needing to search for them each time.
+    This model keeps track of each user's saved favorite locations (city names).
+    It allows them to adding new favorites, removing existing ones, viewing all favorites,
+    and clearing a user's entire list. 
     
     """
 
