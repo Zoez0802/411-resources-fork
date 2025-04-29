@@ -26,4 +26,4 @@ VOLUME ["/app/db"]
 EXPOSE 5000
 
 # Run the entrypoint script when the container launches
-CMD ["python", "Final_project/app.py"]
+CMD ["python", "app.py"]
