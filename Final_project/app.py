@@ -1,6 +1,10 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, session
+from models.favorites_model import WeatherModel
 
 app = Flask(__name__)
+app.secret_key = 'dev'  
+
+weather_model = WeatherModel()
 
 @app.route('/healthcheck', methods=['GET'])
 def healthcheck():
