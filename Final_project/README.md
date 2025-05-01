@@ -8,7 +8,7 @@ The Weather Dashboard is a web-based application that allows users to
 - View current weather, historical weather, and forecast information for their favorites.
 - Remove locations from their favorites list when needed.
 
-##The app integrates:
+The app integrates:
 - Flask (web framework)
 - SQLite with SQLAlchemy (for user authentication)
 - OpenWeatherMap API (for weather data)
