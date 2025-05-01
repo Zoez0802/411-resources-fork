@@ -14,3 +14,18 @@ The app integrates:
 - OpenWeatherMap API (for weather data)
 - An in-memory model to track user-specific favorites
 
+## Unit Tests
+
+Unit tests are provided in the `tests/` directory using `pytest` to run.
+
+The test file `test_favorites_model.py` covers the tests for full functionality of the in-memory favorites model, including:
+
+- Adding single or multiple favorites
+- Preventing duplicate entries
+- Removing favorites (including edge cases)
+- Clearing all favorites for a user
+- Getting favorites for known and unknown users
+
+To run the tests locally:
+```bash
+pytest tests/test_favorites_model.py
