@@ -18,7 +18,7 @@ The app integrates:
 
 Unit tests are provided in the `tests/` directory using `pytest` to run.
 
-The test file `test_favorites_model.py` covers the tests for full functionality of the in-memory favorites model, including:
+The test file `test_weather_model.py` covers the tests for full functionality of the in-memory weather favorites model, including:
 
 - Adding single or multiple favorites
 - Preventing duplicate entries
