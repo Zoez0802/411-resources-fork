@@ -1,97 +1,150 @@
-import unittest
-from flask import json
-from Final_project.weather.app import create_app, db
-from Final_project.weather.models.user_model import Users
-from Final_project.weather.models.weather_model import FavoriteLocation
+import pytest
+import requests
+import json
+from werkzeug.security import generate_password_hash
 
-class SmokeTestCase(unittest.TestCase):
-    def setUp(self):
-        self.app = create_app()
-        self.app.config["TESTING"] = True
-        self.client = self.app.test_client()
-        self.ctx = self.app.app_context()
-        self.ctx.push()
-        db.drop_all()
-        db.create_all()
+# Base URL for the API
+BASE_URL = "http://localhost:5000/api"
 
-        self.username = "smoketest"
-        self.password = "password123"
-        self.location = {
-            "location_name": "Boston",
-            "latitude": 42.3601,
-            "longitude": -71.0589
-        }
+# Test user credentials
+TEST_USER = "smoketest_user"
+TEST_PASSWORD = "smoketest_password"
+NEW_PASSWORD = "new_smoketest_password"
 
-    def tearDown(self):
-        db.session.remove()
-        db.drop_all()
-        self.ctx.pop()
+def test_healthcheck():
+    """Test the healthcheck endpoint"""
+    response = requests.get(f"{BASE_URL}/health")
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["message"] == "Service is running"
 
-    def test_user_and_weather_flow(self):
-        # Healthcheck
-        r = self.client.get("/api/health")
-        self.assertEqual(r.status_code, 200)
+def test_user_management():
+    """Test user creation, login, password change, and logout"""
+    
+    # Clean up any existing test user first
+    requests.delete(f"{BASE_URL}/reset-users")
+    
+    # Test user creation
+    create_response = requests.put(
+        f"{BASE_URL}/create-user",
+        json={"username": TEST_USER, "password": TEST_PASSWORD}
+    )
+    assert create_response.status_code == 201
+    
+    # Test duplicate user creation
+    duplicate_response = requests.put(
+        f"{BASE_URL}/create-user",
+        json={"username": TEST_USER, "password": TEST_PASSWORD}
+    )
+    assert duplicate_response.status_code == 400
+    
+    # Test login with correct credentials
+    login_response = requests.post(
+        f"{BASE_URL}/login",
+        json={"username": TEST_USER, "password": TEST_PASSWORD}
+    )
+    assert login_response.status_code == 200
+    session_cookie = login_response.cookies.get("session")
+    
+    # Test login with incorrect credentials
+    bad_login_response = requests.post(
+        f"{BASE_URL}/login",
+        json={"username": TEST_USER, "password": "wrong_password"}
+    )
+    assert bad_login_response.status_code == 401
+    
+    # Test password change
+    change_pw_response = requests.post(
+        f"{BASE_URL}/change-password",
+        json={"new_password": NEW_PASSWORD},
+        cookies={"session": session_cookie}
+    )
+    assert change_pw_response.status_code == 200
+    
+    # Test logout
+    logout_response = requests.post(
+        f"{BASE_URL}/logout",
+        cookies={"session": session_cookie}
+    )
+    assert logout_response.status_code == 200
+    
+    # Verify new password works
+    new_login_response = requests.post(
+        f"{BASE_URL}/login",
+        json={"username": TEST_USER, "password": NEW_PASSWORD}
+    )
+    assert new_login_response.status_code == 200
 
-        # Create user
-        r = self.client.put("/api/create-user", json={
-            "username": self.username,
-            "password": self.password
-        })
-        self.assertEqual(r.status_code, 201)
+def test_favorites_workflow():
+    """Test the favorites workflow"""
+    
+    # Login first
+    login_response = requests.post(
+        f"{BASE_URL}/login",
+        json={"username": TEST_USER, "password": NEW_PASSWORD}
+    )
+    session_cookie = login_response.cookies.get("session")
+    
+    # Add a favorite location
+    add_fav_response = requests.post(
+        f"{BASE_URL}/favorites/add",
+        json={
+            "user_id": TEST_USER,
+            "location_name": "London",
+            "latitude": 51.5074,
+            "longitude": -0.1278
+        },
+        cookies={"session": session_cookie}
+    )
+    assert add_fav_response.status_code in [201, 409]  # 409 if already exists
+    
+    # Get favorites list
+    fav_list_response = requests.get(
+        f"{BASE_URL}/favorites/list",
+        params={"user_id": TEST_USER},
+        cookies={"session": session_cookie}
+    )
+    assert fav_list_response.status_code == 200
+    assert len(fav_list_response.json()) > 0
+    
+    # Get favorites with weather (mock this if API key isn't available)
+    fav_weather_response = requests.get(
+        f"{BASE_URL}/favorites/weather",
+        params={"user_id": TEST_USER},
+        cookies={"session": session_cookie}
+    )
+    assert fav_weather_response.status_code in [200, 404, 500]  # 500 if API key issues
+    
+    # Get current weather for a location
+    current_weather_response = requests.get(
+        f"{BASE_URL}/weather/current",
+        params={
+            "location_name": "London",
+            "user_id": TEST_USER
+        },
+        cookies={"session": session_cookie}
+    )
+    assert current_weather_response.status_code in [200, 400, 500]  # 500 if API key issues
 
-        # Login and get session cookie
-        r = self.client.post("/api/login", json={
-            "username": self.username,
-            "password": self.password
-        })
-        self.assertEqual(r.status_code, 200)
-        cookie = r.headers.get("Set-Cookie")
-
-        # Fetch user_id from DB
-        user = Users.query.filter_by(username=self.username).first()
-        self.assertIsNotNone(user)
-        user_id = user.id
-
-        # Add favorite
-        r = self.client.post("/api/favorites/add", json={
-            "user_id": user_id,
-            **self.location
-        }, headers={"Cookie": cookie})
-        self.assertIn(r.status_code, [201, 409])
-
-        # Verify favorite was added in DB
-        fav = FavoriteLocation.query.filter_by(user_id=user_id, location_name="Boston").first()
-        self.assertIsNotNone(fav)
-
-        # View favorites list
-        r = self.client.get("/api/favorites/list", query_string={
-            "user_id": user_id
-        }, headers={"Cookie": cookie})
-        self.assertIn(r.status_code, [200, 404])
-
-        # Get favorites
-        r = self.client.get("/api/favorites", query_string={
-            "user_id": user_id
-        }, headers={"Cookie": cookie})
-        self.assertIn(r.status_code, [200, 404])
-
-        # Get current weather
-        r = self.client.get("/api/weather/current", query_string={
-            "user_id": user_id,
-            "location_name": self.location["location_name"]
-        }, headers={"Cookie": cookie})
-        self.assertIn(r.status_code, [200, 400, 404, 500])
-
-        # Get forecast
-        r = self.client.get("/api/weather/forecast", query_string={
-            "user_id": user_id,
-            "location_name": self.location["location_name"]
-        }, headers={"Cookie": cookie})
-        self.assertIn(r.status_code, [200, 400, 404, 500])
-
-        # Logout
-        r = self.client.post("/api/logout", headers={"Cookie": cookie})
-        self.assertEqual(r.status_code, 200)
+def test_protected_endpoints():
+    """Test that protected endpoints require authentication"""
+    endpoints = [
+        ("/favorites/add", "POST"),
+        ("/logout", "POST"),
+        ("/change-password", "POST"),
+        ("/favorites/list", "GET"),
+        ("/weather/current", "GET")
+    ]
+    
+    for endpoint, method in endpoints:
+        if method == "POST":
+            response = requests.post(f"{BASE_URL}{endpoint}")
+        else:
+            response = requests.get(f"{BASE_URL}{endpoint}")
+        
+        assert response.status_code == 401
+        assert "Authentication required" in response.json()["message"]
 
 if __name__ == "__main__":
-    unittest.main()
+    # Run the smoke tests
+    pytest.main(["-v", "smoke_tests.py"])
