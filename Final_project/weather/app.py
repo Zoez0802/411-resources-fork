@@ -5,7 +5,9 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 
 from weather.config import ProductionConfig
 from weather.extensions import db
-from Final_project.weather.models.weather_model import WeatherModel
+from weather.models.weather_model import WeatherModel
+from weather.models.favorite_location_model import FavoriteLocation  
+from weather.models.current_weather_model import CurrentWeather 
 from weather.models.user_model import Users
 from weather.utils.logger import configure_logger
 
@@ -220,6 +222,13 @@ def create_app(config_class=ProductionConfig):
                 "details": str(e)
             }), 500)
 
+        
+    ############################################################
+    #
+    # Weather Forecast
+    #
+    ############################################################
+    
     @app.route("/api/favorites/add", methods=["POST"])
     @login_required
     def add_favorite():
@@ -229,27 +238,12 @@ def create_app(config_class=ProductionConfig):
         latitude = data.get("latitude")
         longitude = data.get("longitude")
 
-        # Check if favorite already exists
-        existing_fav = Favorites.query.filter_by(user_id=user_id, location_name=location_name).first()
-        if existing_fav:
-            return jsonify({"message": "Favorite already exists."}), 409
-
-        # Add favorite location to database
-        fav = Favorites(user_id=user_id, location_name=location_name, latitude=latitude, longitude=longitude)
-        db.session.add(fav)
         try:
-            db.session.commit()
+            weather_model.add_favorite(user_id, location_name, latitude, longitude)
             return jsonify({"message": "Favorite added successfully."}), 201
         except Exception as e:
-            db.session.rollback()
-            return jsonify({"message": str(e)}), 500
+            return jsonify({"message": f"Failed to add favorite: {str(e)}"}), 500
         
-    ############################################################
-    #
-    # Weather Forecast
-    #
-    ############################################################
-
     @app.route("/api/favorites", methods=["GET"])
     @login_required
     def get_favorites():
