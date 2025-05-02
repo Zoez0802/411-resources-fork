@@ -1,12 +1,19 @@
+# tests/conftest.py
 import pytest
+from flask import Flask
+from Final_project.weather.models.weather_model import db, WeatherModel
 
-from app import create_app
-from config import TestConfig
-from weather.db import db
+@pytest.fixture(scope="module")
+def test_app():
+    """
+    Create and configure a new Flask app instance with an in-memory SQLite database.
+    """
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-@pytest.fixture
-def app():
-    app = create_app(TestConfig)
+    db.init_app(app)
+
     with app.app_context():
         db.create_all()
         yield app
@@ -14,10 +21,11 @@ def app():
         db.drop_all()
 
 @pytest.fixture
-def client(app):
-    return app.test_client()
-
-@pytest.fixture
-def session(app):
-    with app.app_context():
-        yield db.session
+def model(test_app):
+    """
+    Provides a fresh WeatherModel instance and resets the DB state.
+    """
+    with test_app.app_context():
+        db.session.query(WeatherModel.FavoriteLocation).delete()
+        db.session.commit()
+        return WeatherModel()
