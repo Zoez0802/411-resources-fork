@@ -2,7 +2,7 @@ import unittest
 from flask import json
 from Final_project.weather.app import create_app, db
 from Final_project.weather.models.user_model import Users
-from Final_project.weather.models.favorite_model import Favorites
+from Final_project.weather.models.weather_model import FavoriteLocation
 
 class SmokeTestCase(unittest.TestCase):
     def setUp(self):
@@ -39,7 +39,7 @@ class SmokeTestCase(unittest.TestCase):
         })
         self.assertEqual(r.status_code, 201)
 
-        # Login
+        # Login and get session cookie
         r = self.client.post("/api/login", json={
             "username": self.username,
             "password": self.password
@@ -47,35 +47,44 @@ class SmokeTestCase(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         cookie = r.headers.get("Set-Cookie")
 
+        # Fetch user_id from DB
+        user = Users.query.filter_by(username=self.username).first()
+        self.assertIsNotNone(user)
+        user_id = user.id
+
         # Add favorite
         r = self.client.post("/api/favorites/add", json={
-            "user_id": self.username,
+            "user_id": user_id,
             **self.location
         }, headers={"Cookie": cookie})
         self.assertIn(r.status_code, [201, 409])
 
+        # Verify favorite was added in DB
+        fav = FavoriteLocation.query.filter_by(user_id=user_id, location_name="Boston").first()
+        self.assertIsNotNone(fav)
+
         # View favorites list
         r = self.client.get("/api/favorites/list", query_string={
-            "user_id": self.username
+            "user_id": user_id
         }, headers={"Cookie": cookie})
         self.assertIn(r.status_code, [200, 404])
 
         # Get favorites
         r = self.client.get("/api/favorites", query_string={
-            "user_id": self.username
+            "user_id": user_id
         }, headers={"Cookie": cookie})
         self.assertIn(r.status_code, [200, 404])
 
         # Get current weather
         r = self.client.get("/api/weather/current", query_string={
-            "user_id": self.username,
+            "user_id": user_id,
             "location_name": self.location["location_name"]
         }, headers={"Cookie": cookie})
         self.assertIn(r.status_code, [200, 400, 404, 500])
 
         # Get forecast
         r = self.client.get("/api/weather/forecast", query_string={
-            "user_id": self.username,
+            "user_id": user_id,
             "location_name": self.location["location_name"]
         }, headers={"Cookie": cookie})
         self.assertIn(r.status_code, [200, 400, 404, 500])
