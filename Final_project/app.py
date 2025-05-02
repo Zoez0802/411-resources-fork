@@ -52,11 +52,21 @@ def create_app(config_class=ProductionConfig):
 
     @app.route('/api/health', methods=['GET'])
     def healthcheck() -> Response:
+        """
+        Health check endpoint.
+
+        Method: GET  
+        Description: Returns a simple success response to confirm the service is running.
+        
+        Returns:
+            JSON response indicating service status.
+        """
         app.logger.info("Health check endpoint hit")
         return make_response(jsonify({
             'status': 'success',
             'message': 'Service is running'
         }), 200)
+
 
     ####################################################
     # User Management
@@ -64,6 +74,21 @@ def create_app(config_class=ProductionConfig):
 
     @app.route('/api/create-user', methods=['PUT'])
     def create_user() -> Response:
+        """
+        Create a new user account.
+
+        Method: PUT  
+        Request JSON Body:
+            {
+                "username": "string",
+                "password": "string"
+            }
+
+        Returns:
+            201 Created: If the user is successfully created.
+            400 Bad Request: If username or password is missing, or user already exists.
+            500 Internal Server Error: On unexpected error.
+        """
         try:
             data = request.get_json()
             username = data.get("username")
@@ -96,6 +121,22 @@ def create_app(config_class=ProductionConfig):
 
     @app.route('/api/login', methods=['POST'])
     def login() -> Response:
+        """
+        Authenticate user and start a session.
+
+        Method: POST  
+        Request JSON Body:
+            {
+                "username": "string",
+                "password": "string"
+            }
+
+        Returns:
+            200 OK: If login is successful.
+            400 Bad Request: If input is missing.
+            401 Unauthorized: If credentials are incorrect.
+            500 Internal Server Error: On unexpected error.
+        """
         try:
             data = request.get_json()
             username = data.get("username")
