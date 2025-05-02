@@ -217,8 +217,104 @@ def create_app(config_class=ProductionConfig):
                 "details": str(e)
             }), 500)
 
+    @app.route("/api/favorites/add", methods=["POST"])
+    @login_required
+    def add_favorite():
+        data = request.get_json()
+        user_id = data.get("user_id")
+        location_name = data.get("location_name")
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
+
+        # Check if favorite already exists
+        existing_fav = Favorites.query.filter_by(user_id=user_id, location_name=location_name).first()
+        if existing_fav:
+            return jsonify({"message": "Favorite already exists."}), 409
+
+        # Add favorite location to database
+        fav = Favorites(user_id=user_id, location_name=location_name, latitude=latitude, longitude=longitude)
+        db.session.add(fav)
+        try:
+            db.session.commit()
+            return jsonify({"message": "Favorite added successfully."}), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"message": str(e)}), 500
+        
+    ############################################################
+    #
+    # Weather
+    #
+    ############################################################
+
+    @app.route("/api/favorites", methods=["GET"])
+    @login_required
+    def get_favorites():
+        user_id = request.args.get("user_id")
+        favorites = Favorites.query.filter_by(user_id=user_id).all()
+
+        if not favorites:
+            return jsonify({"message": "No favorites found."}), 404
+
+        return jsonify([{
+            "location_name": fav.location_name,
+            "latitude": fav.latitude,
+            "longitude": fav.longitude
+        } for fav in favorites])
+
+    @app.route("/api/weather/current", methods=["GET"])
+    @login_required
+    def get_current_weather():
+        location_name = request.args.get("location_name")
+        user_id = request.args.get("user_id")
+
+        # Fetch current weather from the OpenWeather API
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={location_name}&appid={API_KEY}&units=metric"
+        response = requests.get(url)
+        data = response.json()
+
+        if response.status_code != 200:
+            return jsonify({"message": "Failed to fetch weather data."}), 500
+
+        # Extract data from the API response
+        temperature = data["main"]["temp"]
+        humidity = data["main"]["humidity"]
+        wind_speed = data["wind"]["speed"]
+        condition = data["weather"][0]["description"]
+
+        # Check if the location exists in favorites and associate weather data
+        favorite = Favorites.query.filter_by(user_id=user_id, location_name=location_name).first()
+
+        if favorite:
+            # Save the current weather data to the database
+            current_weather = CurrentWeather(
+                favorite_id=favorite.id,
+                temperature=temperature,
+                humidity=humidity,
+                wind_speed=wind_speed,
+                condition=condition
+            )
+            db.session.add(current_weather)
+            db.session.commit()
+
+            return jsonify({
+                "location": location_name,
+                "temperature": temperature,
+                "humidity": humidity,
+                "wind_speed": wind_speed,
+                "condition": condition
+            })
+
+        return jsonify({"message": "Location is not a favorite."}), 404
+    
     return app
 
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    app = create_app()
+    app.logger.info("Starting Flask app...")
+    try:
+        app.run(debug=True, host='0.0.0.0', port=5000)
+    except Exception as e:
+        app.logger.error(f"Flask app encountered an error: {e}")
+    finally:
+        app.logger.info("Flask app has stopped.")
