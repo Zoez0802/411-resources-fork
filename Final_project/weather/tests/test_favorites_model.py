@@ -1,5 +1,5 @@
 import pytest
-from Final_project.weather.models.weather import WeatherModel
+from Final_project.weather.models.weather_model import WeatherModel
 
 @pytest.fixture
 def model():

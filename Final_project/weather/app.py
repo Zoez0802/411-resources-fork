@@ -5,7 +5,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 
 from weather.config import ProductionConfig
 from weather.extensions import db
-from weather.models.weather import WeatherModel
+from Final_project.weather.models.weather_model import WeatherModel
 from weather.models.user_model import Users
 from weather.utils.logger import configure_logger
 
