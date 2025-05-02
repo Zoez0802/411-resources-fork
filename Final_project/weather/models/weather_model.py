@@ -6,7 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from flask_sqlalchemy import SQLAlchemy
 
 from weather.db import db
-from weather.models import FavoriteLocation, CurrentWeather  # Assuming these exist
+from .favorite_location_model import FavoriteLocation
+from .current_weather_model import CurrentWeather
 
 logger = logging.getLogger(__name__)
 

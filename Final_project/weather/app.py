@@ -3,8 +3,8 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, make_response, request, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 
-from weather.config import ProductionConfig
-from weather.extensions import db
+from config import ProductionConfig
+from weather.db import db
 from weather.models.weather_model import WeatherModel
 from weather.models.favorite_location_model import FavoriteLocation  
 from weather.models.current_weather_model import CurrentWeather 
