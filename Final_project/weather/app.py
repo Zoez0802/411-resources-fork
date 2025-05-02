@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, session
-from models.favorites_model import WeatherModel
+from Final_project.weather.models.weather import WeatherModel
 
 app = Flask(__name__)
 app.secret_key = 'dev'  
