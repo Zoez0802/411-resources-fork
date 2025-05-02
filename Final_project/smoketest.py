@@ -145,6 +145,39 @@ def test_protected_endpoints():
         assert response.status_code == 401
         assert "Authentication required" in response.json()["message"]
 
+def test_historical_weather():
+    response = requests.get(
+        f"{BASE_URL}/weather/historical",
+        params={"location_name": "London", "user_id": TEST_USER},
+        cookies={"session": session_cookie}
+    )
+    assert response.status_code in [200, 404]  # 404 if no data
+
+def test_weather_api_mocked(mocker):
+    mock_response = {"main": {"temp": 15.0}, "weather": [{"description": "cloudy"}]}
+    mocker.patch("requests.get", return_value=Mock(status_code=200, json=lambda: mock_response))
+    
+    response = requests.get(
+        f"{BASE_URL}/weather/current",
+        params={"location_name": "London", "user_id": TEST_USER},
+        cookies={"session": session_cookie}
+    )
+    assert response.json()["temperature"] == 15.0
+
+def test_favorite_stored_in_db():
+    # After adding a favorite, verify it exists in the database
+    favorite = Favorites.query.filter_by(user_id=TEST_USER, location_name="London").first()
+    assert favorite is not None
+    assert favorite.latitude == 51.5074
+
+def test_add_favorite_invalid_input():
+    response = requests.post(
+        f"{BASE_URL}/favorites/add",
+        json={"user_id": TEST_USER},  # Missing required fields
+        cookies={"session": session_cookie}
+    )
+    assert response.status_code == 400
+
 if __name__ == "__main__":
     # Run the smoke tests
     pytest.main(["-v", "smoke_tests.py"])
