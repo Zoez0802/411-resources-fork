@@ -1,3 +1,4 @@
+import os
 from dotenv import load_dotenv
 from flask import Flask, jsonify, make_response, request, Response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -9,6 +10,8 @@ from weather.models.user_model import Users
 from weather.utils.logger import configure_logger
 
 load_dotenv()
+
+API_KEY = os.getenv('OPENWEATHER_API_KEY')
 
 def create_app(config_class=ProductionConfig):
     app = Flask(__name__)
@@ -243,13 +246,24 @@ def create_app(config_class=ProductionConfig):
         
     ############################################################
     #
-    # Weather
+    # Weather Forecast
     #
     ############################################################
 
     @app.route("/api/favorites", methods=["GET"])
     @login_required
     def get_favorites():
+        """
+        Retrieves a list of favorite locations for the currently authenticated user.
+
+        This endpoint queries the database for all favorite locations associated with
+        the provided `user_id`. The response includes the name, latitude, and longitude
+        of each favorite location.
+
+        Returns:
+            json: A JSON array containing the favorite locations, or a message indicating
+                no favorites are found.
+        """
         user_id = request.args.get("user_id")
         favorites = Favorites.query.filter_by(user_id=user_id).all()
 
@@ -261,10 +275,134 @@ def create_app(config_class=ProductionConfig):
             "latitude": fav.latitude,
             "longitude": fav.longitude
         } for fav in favorites])
+    
+    @app.route("/api/favorites/weather", methods=["GET"])
+    @login_required
+    def view_all_favorites_with_weather():
+        """
+        Displays a list of all favorite locations with their current weather.
+        """
+        user_id = request.args.get("user_id")
+        favorites = Favorites.query.filter_by(user_id=user_id).all()
+
+        if not favorites:
+            return jsonify({"message": "No favorites found."}), 404
+
+        # Get current weather for each favorite location
+        favorite_weather = []
+        for fav in favorites:
+            location_name = fav.location_name
+            # Fetch weather from OpenWeather API
+            url = f"http://api.openweathermap.org/data/2.5/weather?q={location_name}&appid={API_KEY}&units=metric"
+            response = requests.get(url)
+            data = response.json()
+
+            if response.status_code != 200:
+                favorite_weather.append({"location_name": location_name, "message": "Failed to fetch weather data"})
+                continue
+
+            # Extract weather data
+            temperature = data["main"]["temp"]
+            humidity = data["main"]["humidity"]
+            wind_speed = data["wind"]["speed"]
+            condition = data["weather"][0]["description"]
+
+            favorite_weather.append({
+                "location_name": location_name,
+                "temperature": temperature,
+                "humidity": humidity,
+                "wind_speed": wind_speed,
+                "condition": condition
+            })
+
+    @app.route("/api/favorites/list", methods=["GET"])
+    @login_required
+    def get_favorites_list():
+        """
+        Allows users to view a simple list of all their saved favorite locations.
+        """
+        user_id = request.args.get("user_id")
+        favorites = Favorites.query.filter_by(user_id=user_id).all()
+
+        if not favorites:
+            return jsonify({"message": "No favorites found."}), 404
+
+        # List all favorite locations
+        favorite_list = [{"location_name": fav.location_name, "latitude": fav.latitude, "longitude": fav.longitude} for fav in favorites]
+
+        return jsonify(favorite_list)
+    
+    @app.route("/api/weather/historical", methods=["GET"])
+    @login_required
+    def get_historical_weather():
+        """
+        Retrieves historical weather data for a favorite location.
+        """
+        location_name = request.args.get("location_name")
+        user_id = request.args.get("user_id")
+        # Assuming you store historical data in the database (e.g., in the CurrentWeather model)
+        historical_weather = CurrentWeather.query.filter_by(location_name=location_name, user_id=user_id).all()
+
+        if not historical_weather:
+            return jsonify({"message": "No historical data found for this location."}), 404
+
+        # Format and return historical weather data
+        return jsonify([{
+            "temperature": record.temperature,
+            "humidity": record.humidity,
+            "wind_speed": record.wind_speed,
+            "condition": record.condition,
+            "date": record.date  # Assuming you store the date
+        } for record in historical_weather])
+    
+    @app.route("/api/weather/forecast", methods=["GET"])
+    @login_required
+    def get_weather_forecast():
+        """
+        Retrieves a weather forecast for a favorite location.
+        """
+        location_name = request.args.get("location_name")
+        user_id = request.args.get("user_id")
+
+        # Fetch forecast from the OpenWeather API
+        url = f"http://api.openweathermap.org/data/2.5/forecast?q={location_name}&appid={API_KEY}&units=metric"
+        response = requests.get(url)
+        data = response.json()
+
+        if response.status_code != 200:
+            return jsonify({"message": "Failed to fetch forecast data."}), 500
+
+        forecast_data = []
+        for forecast in data["list"]:
+            forecast_data.append({
+                "date": forecast["dt_txt"],
+                "temperature": forecast["main"]["temp"],
+                "humidity": forecast["main"]["humidity"],
+                "wind_speed": forecast["wind"]["speed"],
+                "condition": forecast["weather"][0]["description"]
+            })
+
+        return jsonify(forecast_data)
 
     @app.route("/api/weather/current", methods=["GET"])
     @login_required
     def get_current_weather():
+        """
+        Retrieves the current weather data for a specified favorite location.
+
+        This endpoint fetches the current weather details for the given location using
+        the OpenWeatherMap API. It returns temperature, humidity, wind speed, and general
+        weather conditions. If the location is a favorite of the user, the weather data
+        is stored in the database for future reference.
+
+        Parameters:
+            location_name (str): The name of the location to fetch the weather for.
+            user_id (str): The ID of the currently authenticated user.
+
+        Returns:
+            json: A JSON object containing weather data (temperature, humidity, wind speed,
+                condition) or an error message if the location is not a favorite.
+        """
         location_name = request.args.get("location_name")
         user_id = request.args.get("user_id")
 
@@ -305,7 +443,7 @@ def create_app(config_class=ProductionConfig):
                 "condition": condition
             })
 
-        return jsonify({"message": "Location is not a favorite."}), 404
+        return jsonify({"message": "Location is not a favorite."}), 40
     
     return app
 
